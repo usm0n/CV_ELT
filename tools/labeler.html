@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Labeler</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --fg:#e6e8ee; --muted:#8a91a3; --acc:#5aa9ff; --warn:#ffb454; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+  header { display:flex; gap:12px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0 12px 0 0; }
+  main { display:grid; grid-template-columns: minmax(0,1fr) 380px; gap:12px; padding:12px 16px; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  video { width:100%; background:#000; border-radius:6px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; }
+  button, select, input { background:#222734; color:var(--fg); border:1px solid var(--line); border-radius:5px; padding:5px 9px; font:inherit; }
+  button:hover { border-color:var(--acc); cursor:pointer; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; }
+  #timeline { position:relative; height:120px; background:#11141a; border:1px solid var(--line); border-radius:6px; margin-top:8px; cursor:pointer; overflow:hidden; }
+  #playhead { position:absolute; top:0; bottom:0; width:2px; background:var(--warn); pointer-events:none; }
+  .seg { position:absolute; height:12px; border-radius:3px; opacity:.85; }
+  .pending { position:absolute; top:0; bottom:0; background:rgba(90,169,255,.18); border-left:2px solid var(--acc); pointer-events:none; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td, th { padding:4px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  tr:hover td { background:#1f2430; cursor:pointer; }
+  .classes { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+  .cls { display:flex; gap:6px; align-items:center; padding:3px 6px; border-radius:5px; border:1px solid transparent; cursor:pointer; font-size:13px; }
+  .cls.active { border-color:var(--acc); background:#1f2a3a; }
+  .dot { width:10px; height:10px; border-radius:2px; flex:none; }
+  kbd { background:#262b36; border:1px solid var(--line); border-radius:3px; padding:0 4px; font-size:12px; }
+  .muted { color:var(--muted); }
+  #time { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Event Labeler</h1>
+  <label>Video <input type="file" id="videoFile" accept="video/*"></label>
+  <label>Key <input id="videoKey" size="14" placeholder="C3896.MP4"></label>
+  <label>Import JSON <input type="file" id="importFile" accept=".json"></label>
+  <button id="exportBtn">Export labels JSON</button>
+  <span class="muted" id="status"></span>
+</header>
+<main>
+  <section>
+    <video id="video" controls preload="auto"></video>
+    <div class="row">
+      <span id="time">0.00 s</span>
+      <span class="muted">rate</span>
+      <select id="rate"><option>0.25</option><option>0.5</option><option selected>1</option><option>2</option><option>4</option></select>
+      <span class="muted">
+        <kbd>Space</kbd> play · <kbd>←/→</kbd> ±1 s (<kbd>Shift</kbd> ±0.1 s) ·
+        <kbd>[</kbd> start · <kbd>]</kbd> end + save · <kbd>Esc</kbd> cancel · <kbd>1-9,0,q,w,e,r</kbd> class
+      </span>
+    </div>
+    <div id="timeline"><div id="playhead"></div></div>
+  </section>
+  <aside class="panel">
+    <div class="classes" id="classes"></div>
+    <div class="row"><input id="note" placeholder="note (optional)" style="flex:1"></div>
+    <table><thead><tr><th>start</th><th>end</th><th>class</th><th></th></tr></thead><tbody id="events"></tbody></table>
+  </aside>
+</main>
+<script>
+const CLASSES = ["accident","near_miss","red_light","wrong_way","illegal_u_turn","stopped_vehicle","jaywalking",
+  "failure_to_yield","illegal_turn","solid_line_crossing","stop_line","congestion","road_obstacle","fire_smoke"];
+const KEYS = ["1","2","3","4","5","6","7","8","9","0","q","w","e","r"];
+const COLORS = ["#e5484d","#f76b15","#ffc53d","#a18072","#8e4ec6","#3e63dd","#12a594","#46a758","#d6409f","#0090ff","#ffe629","#978365","#6e56cf","#ff8b3e"];
+const $ = id => document.getElementById(id);
+const video = $("video");
+let db = {};           // key -> {duration, fps, events:[[s,e,label,note?]]}
+let active = 0, pending = null;
+
+function load() { try { db = JSON.parse(localStorage.getItem("labels") || "{}"); } catch { db = {}; } }
+function save() { try { localStorage.setItem("labels", JSON.stringify(db)); } catch {} }
+function key() { return $("videoKey").value.trim(); }
+function entry() {
+  const k = key(); if (!k) return null;
+  db[k] ??= { duration: +(video.duration || 0).toFixed(3), fps: 29.97, events: [] };
+  if (video.duration) db[k].duration = +video.duration.toFixed(3);
+  return db[k];
+}
+function fmt(t) { return t.toFixed(2); }
+
+function renderClasses() {
+  $("classes").innerHTML = CLASSES.map((c, i) =>
+    `<div class="cls ${i === active ? "active" : ""}" data-i="${i}"><span class="dot" style="background:${COLORS[i]}"></span><kbd>${KEYS[i]}</kbd> ${c}</div>`).join("");
+  document.querySelectorAll(".cls").forEach(el => el.onclick = () => { active = +el.dataset.i; renderClasses(); });
+}
+
+function render() {
+  const e = entry(), tl = $("timeline"), d = video.duration || 1;
+  tl.querySelectorAll(".seg,.pending").forEach(n => n.remove());
+  const rows = [];
+  if (e) {
+    e.events.sort((a, b) => a[0] - b[0]);
+    e.events.forEach((ev, idx) => {
+      const ci = CLASSES.indexOf(ev[2]);
+      const seg = document.createElement("div");
+      seg.className = "seg";
+      Object.assign(seg.style, { left: `${ev[0] / d * 100}%`, width: `${Math.max(0.3, (ev[1] - ev[0]) / d * 100)}%`,
+        top: `${4 + (ci % 7) * 16}px`, background: COLORS[ci] });
+      seg.title = `${ev[2]} ${fmt(ev[0])}-${fmt(ev[1])}`;
+      tl.appendChild(seg);
+      rows.push(`<tr data-i="${idx}"><td>${fmt(ev[0])}</td><td>${fmt(ev[1])}</td><td><span class="dot" style="display:inline-block;background:${COLORS[ci]}"></span> ${ev[2]}${ev[3] ? ` <span class="muted">${ev[3]}</span>` : ""}</td><td><button data-del="${idx}">✕</button></td></tr>`);
+    });
+  }
+  if (pending !== null) {
+    const p = document.createElement("div"); p.className = "pending";
+    Object.assign(p.style, { left: `${pending / d * 100}%`, width: `${Math.max(0, (video.currentTime - pending) / d * 100)}%` });
+    tl.appendChild(p);
+  }
+  $("events").innerHTML = rows.join("");
+  document.querySelectorAll("#events tr").forEach(tr => tr.onclick = ev => {
+    if (ev.target.dataset.del !== undefined) { entry().events.splice(+ev.target.dataset.del, 1); save(); render(); return; }
+    video.currentTime = entry().events[+tr.dataset.i][0];
+  });
+}
+
+function tick() {
+  $("time").textContent = `${fmt(video.currentTime)} s` + (pending !== null ? `  (start ${fmt(pending)})` : "");
+  $("playhead").style.left = `${video.currentTime / (video.duration || 1) * 100}%`;
+  if (pending !== null) render();
+  requestAnimationFrame(tick);
+}
+
+$("videoFile").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  video.src = URL.createObjectURL(f);
+  if (!key()) $("videoKey").value = f.name.replace(/\.[^.]+$/, "") + ".MP4";
+  $("status").textContent = f.name;
+};
+video.onloadedmetadata = () => { entry(); save(); render(); };
+$("videoKey").onchange = () => { entry(); save(); render(); };
+$("rate").onchange = e => video.playbackRate = +e.target.value;
+$("timeline").onclick = e => { const r = e.currentTarget.getBoundingClientRect(); video.currentTime = (e.clientX - r.left) / r.width * video.duration; };
+
+$("exportBtn").onclick = () => {
+  const out = {};
+  for (const [k, v] of Object.entries(db)) out[k] = { duration: v.duration, fps: v.fps,
+    events: v.events.map(ev => [+ev[0].toFixed(2), +ev[1].toFixed(2), ev[2]]) };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: "application/json" }));
+  a.download = "dev_labels.json"; a.click();
+};
+$("importFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const data = JSON.parse(await f.text());
+  const src = data.videos ?? data;          // accepts ground-truth or predictions format
+  for (const [k, v] of Object.entries(src)) {
+    db[k] ??= { duration: v.duration ?? 0, fps: v.fps ?? 29.97, events: [] };
+    for (const ev of v.events) if (!db[k].events.some(x => x[0] === ev[0] && x[1] === ev[1] && x[2] === ev[2]))
+      db[k].events.push([ev[0], ev[1], ev[2], data.videos ? "pred" : ""]);
+  }
+  save(); render(); $("status").textContent = `imported ${f.name}`;
+};
+
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  const k = e.key.toLowerCase(), ci = KEYS.indexOf(k);
+  if (ci >= 0) { active = ci; renderClasses(); return; }
+  if (e.key === " ") { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); video.currentTime += e.shiftKey ? 0.1 : 1; }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); video.currentTime -= e.shiftKey ? 0.1 : 1; }
+  else if (e.key === "[") { pending = video.currentTime; }
+  else if (e.key === "Escape") { pending = null; render(); }
+  else if (e.key === "]" && pending !== null) {
+    const s = Math.min(pending, video.currentTime), en = Math.max(pending, video.currentTime);
+    if (en - s > 0.05 && entry()) { entry().events.push([s, en, CLASSES[active], $("note").value.trim()]); $("note").value = ""; save(); }
+    pending = null; render();
+  }
+});
+
+load(); renderClasses(); tick();
+</script>
+</body>
+</html>

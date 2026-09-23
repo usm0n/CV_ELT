@@ -1,0 +1,34 @@
+# Scene layout of the camera, in pixels of src/scene/reference.jpg (1920x1080).
+# The organizers' camera.md was not provided, so everything here was read off
+# the reference background and checked against vehicle/pedestrian trajectories.
+# Each video is mapped onto this frame by src/scene/registration.py.
+
+# Vehicle signal head on the median, facing the camera (red / amber / green lamp centres).
+# It turns green in phase with the lower-left pedestrian signal, i.e. one controller cycle.
+signal_lamps:
+  red: [1159, 372.5]
+  amber: [1159, 389.5]
+  green: [1158, 406.5]
+
+# Stop line of the main approach (near carriageway, traffic moving top-left -> bottom-right).
+stop_line_main: [[285, 528], [505, 502], [800, 470], [935, 455]]
+
+# Pedestrian crossings (polygons).
+crosswalks:
+  main_near: [[330, 604], [1065, 506], [1135, 534], [368, 652]]    # across the near carriageway
+  main_far: [[1150, 508], [1905, 466], [1905, 500], [1300, 548], [1165, 548]]  # across the far carriageway
+  lower_left: [[150, 775], [330, 712], [900, 1080], [590, 1080]]   # across the lower-left road
+
+# Median strip of the avenue (vehicles must not cross it).
+median: [[95, 108], [140, 108], [1190, 505], [1185, 530], [1090, 520]]
+
+# Pedestrian islands (red triangles): not carriageway.
+islands:
+  - [[500, 770], [630, 665], [750, 740]]
+  - [[680, 850], [860, 810], [950, 880], [720, 900]]
+  - [[110, 935], [285, 860], [410, 925], [350, 940]]
+
+# Open carriageway of the junction box below main_near / main_far, where a pedestrian has no
+# business walking. It stops at the triangle island's upper edge: the short unmarked gap between
+# main_near's left end and that island is the routine walking route and is not jaywalking.
+junction: [[630, 655], [1135, 550], [1300, 548], [1905, 500], [1905, 1000], [860, 1000], [760, 760]]
