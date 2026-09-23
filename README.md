@@ -73,6 +73,39 @@ WIUT_CACHE_DIR=.cache python tools/review_candidates.py samples/C3896.MP4 jaywal
 python tools/risk_scan.py samples                                   # Part B false-alarm check
 ```
 
+## Reproducibility
+
+- **Seeds.** `src/config.py` sets `SEED = 0`, and `seed_everything()` seeds `random`, NumPy and
+  torch and turns on deterministic cuDNN (`cudnn.deterministic = True`, `benchmark = False`).
+  `detect_events` calls it before each video.
+- **Nothing is trained.** Detection uses the pretrained YOLO11 weights as shipped. Everything
+  after detection is rules plus hand-set thresholds in `src/config.py` and `src/risk/estimator.py`.
+  The one fitted artefact, `src/scene/priors.npz` (drivable area and dominant travel
+  directions), is built deterministically from the sample videos' tracks by
+  `tools/build_scene_priors.py`.
+- **`predictions_samples.json`** is the harness output on the four sample videos, from the
+  tagged commit:
+  `python run_submission.py --videos samples --out predictions_samples.json --team Solution`.
+- **The only timing-dependent behaviour** is Part B's budget guard. If the projected wall time
+  would exceed 85% of the 3× budget, `RiskEstimator` stops running the detector and holds its
+  last score. On our laptop the longest sample (C3896) came close to that limit. On a
+  CUDA machine, where Part A and the decode run faster, it should not trigger. If it does, two
+  runs can differ in the risk curve's tail, but never in Part A's events.
+
+## Models, data and licences
+
+| component | used for | licence |
+|---|---|---|
+| YOLO11m / YOLO11n weights (Ultralytics), COCO-pretrained | vehicle and person detection | AGPL-3.0 (weights); COCO annotations CC BY 4.0 |
+| `ultralytics` | inference wrapper | AGPL-3.0 |
+| `trackers` (Roboflow), ByteTrack | multi-object tracking | Apache-2.0 |
+| `supervision` | detection containers | MIT |
+| PyAV (`av`) | 4K decode with B-frame skipping | BSD-3-Clause |
+| OpenCV, NumPy, SciPy, PyTorch | image ops, maths, inference | Apache-2.0 / BSD |
+
+We train on no external datasets. Our own labels of the sample videos (`labels/`) serve only
+as a dev set for choosing rules and thresholds.
+
 ## Runtime
 
 Full harness run on the four samples, on an Apple M-series laptop (MPS, no CUDA). All four

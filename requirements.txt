@@ -1,6 +1,7 @@
 # Python >= 3.10. Linux wheels of torch from PyPI include CUDA (runs on the T4).
 numpy==2.4.6
 opencv-python-headless==5.0.0.93
+av==18.1.0
 torch==2.14.0
 torchvision==0.29.0
 ultralytics==8.4.160
