@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 
@@ -25,7 +26,9 @@ class Observation:
     signal_state: np.ndarray   # smoothed states (src.scene.signal constants)
 
 
-def observe(meta: VideoMeta, scene: Scene) -> Observation:
+def observe(meta: VideoMeta, scene: Scene,
+            on_progress: Callable[[float], None] | None = None) -> Observation:
+    """Detect, track and read the signal in one pass; `on_progress` gets the share of video done."""
     cached = load_cached(meta)
     if cached is not None:
         return Observation(**cached)
@@ -38,6 +41,8 @@ def observe(meta: VideoMeta, scene: Scene) -> Observation:
     def read_signal(t: float, frame: np.ndarray) -> None:
         sig_t.append(t)
         sig_s.append(reader.read(frame))
+        if on_progress is not None and meta.duration:
+            on_progress(min(t / meta.duration, 1.0))
 
     table = scan_video(meta, on_full_frame=read_signal)
     obs = Observation(table=table, H=H, signal_t=np.asarray(sig_t),
@@ -46,12 +51,13 @@ def observe(meta: VideoMeta, scene: Scene) -> Observation:
     return obs
 
 
-def analyze(video_path: str, labels=None) -> tuple[Context, dict[str, list[Candidate]]]:
+def analyze(video_path: str, labels=None,
+            on_progress: Callable[[float], None] | None = None) -> tuple[Context, dict[str, list[Candidate]]]:
     """Observation + every rule's raw candidates (before merging). `labels` defaults to all rules."""
     config.seed_everything()
     meta = read_meta(video_path)
     scene = Scene.load()
-    obs = observe(meta, scene)
+    obs = observe(meta, scene, on_progress)
     tracks = build_tracks(obs.table, to_ref=np.linalg.inv(obs.H))
     ctx = Context(meta=meta, tracks=tracks, scene=scene, signal_t=obs.signal_t, signal_state=obs.signal_state)
     rules = load_rules()
@@ -60,7 +66,11 @@ def analyze(video_path: str, labels=None) -> tuple[Context, dict[str, list[Candi
 
 
 def detect_events(video_path: str) -> list[list]:
-    ctx, candidates = analyze(video_path, config.ENABLED_CLASSES)
+    return events_from(*analyze(video_path, config.ENABLED_CLASSES))
+
+
+def events_from(ctx: Context, candidates: dict[str, list[Candidate]]) -> list[list]:
+    """Merge each rule's raw candidates into final [start, end, label] segments."""
     rules = load_rules()
     events: list[list] = []
     for label, cands in candidates.items():

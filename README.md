@@ -102,6 +102,7 @@ python tools/risk_scan.py samples                                   # Part B fal
 | `supervision` | detection containers | MIT |
 | PyAV (`av`) | 4K decode with B-frame skipping | BSD-3-Clause |
 | OpenCV, NumPy, SciPy, PyTorch | image ops, maths, inference | Apache-2.0 / BSD |
+| FastAPI, uvicorn; Next.js, Recharts (demo server and website only) | live demo, team website | MIT / BSD-3-Clause |
 
 We train on no external datasets. Our own labels of the sample videos (`labels/`) serve only
 as a dev set for choosing rules and thresholds.
@@ -121,6 +122,37 @@ videos finished inside the 3× budget, and the output validates with 0 errors:
 Dev-label score with the official `evaluate.py`: **Score A = 0.48** (stop_line 0.92, jaywalking
 0.53, failure_to_yield 0 because it is not predicted). There are no accidents in the samples, so
 Part B is unscored there. On the samples the risk curve stays below the alarm threshold (0.5).
+
+## Website and live demo
+
+The team website lives in `website/` (Next.js, static export). The live-demo API is in `demo/`
+(FastAPI, Docker, meant for a CPU Hugging Face Space).
+
+```bash
+# 1. data for the site (runs without the videos: predictions, dev-label metrics, scene layout)
+python tools/export_site_data.py
+# 2. with the sample videos: EDA, heatmaps, event stills and annotated playback (needs ffmpeg)
+WIUT_CACHE_DIR=.cache python tools/export_site_data.py --videos samples
+# 3. the site
+cd website && npm install && npm run dev        # http://localhost:3000
+npm run build                                   # static site in website/out/
+```
+
+Pages that need the videos (EDA charts, heatmaps, annotated playback, event stills) show a
+placeholder until step 2 has been run and its output in `website/public/` is committed.
+
+**Demo API.** Run it locally from the repository root with
+`pip install -r requirements.txt -r demo/requirements.txt && uvicorn demo.app:app --port 7860`.
+Point the site at it with `NEXT_PUBLIC_DEMO_API=http://localhost:7860` in `website/.env.local`.
+
+- Endpoints: `POST /jobs` takes the upload (≤ 2 min, ≤ 200 MB), `GET /jobs/{id}` reports progress
+  and the result, and `GET /media/{id}.mp4` serves the annotated video.
+- On CPU the demo defaults to YOLO11n at 5 fps (`DEMO_DETECTOR`, `DEMO_SAMPLE_INTERVAL`).
+
+**Deploy.**
+- Demo: `HF_SPACE=<user>/<space> bash demo/deploy_space.sh` creates a Docker Space from `demo/Dockerfile`.
+- Website: import the repo in Vercel with root directory `website/` and set `NEXT_PUBLIC_DEMO_API`
+  to the Space URL (`https://<user>-<space>.hf.space`).
 
 ## Team
 
