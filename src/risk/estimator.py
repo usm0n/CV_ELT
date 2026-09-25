@@ -65,7 +65,7 @@ class RiskModel:
         self.raw = 0.0
         self.busy = 0.0            # s of wall time spent in processed steps
         self.duration = duration
-        self.guarding = False
+        self.guarded = False       # reported once per video
 
     def _affordable(self, t: float) -> bool:
         """Would one more processed frame still let the harness finish the video in time?
@@ -80,9 +80,9 @@ class RiskModel:
         decode = (elapsed - self.busy) * left
         ours = self.busy * left
         ok = elapsed + decode + ours < self.budget
-        if not ok and not self.guarding:
-            print(f"risk: time budget guard engaged at t={t:.1f}s; holding the last score", file=sys.stderr)
-        self.guarding = not ok
+        if not ok and not self.guarded:
+            self.guarded = True
+            print(f"risk: time budget guard engaged at t={t:.1f}s; skipping frames from here on", file=sys.stderr)
         return ok
 
     def step(self, frame: np.ndarray, t: float) -> float:

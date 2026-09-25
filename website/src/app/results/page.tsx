@@ -97,7 +97,10 @@ export default function ResultsPage() {
             <>
               The same rules on detections from different settings. The first row is the submission. The fourth is the
               profile the code switches to by itself on a machine without a GPU, and the one the live demo runs, so a
-              missing GPU costs accuracy instead of scoring every video as empty.
+              missing GPU costs accuracy instead of scoring every video as empty. The smaller detector loses about 0.02:
+              stop lines drop from 0.92 to 0.83 while jaywalking rises a little. Halving the frame rate or the input
+              size changed nothing on our 21 dev events. That is too few to prove the settings equivalent, and the time
+              budget has room, so the submission keeps 10 fps and 960 px.
             </>
           }
         >

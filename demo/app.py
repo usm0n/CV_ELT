@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import cv2
@@ -47,7 +48,15 @@ CHUNK = 1 << 20
 SAMPLE = Path(os.environ.get("DEMO_SAMPLE", ROOT / "demo" / "sample.mp4"))
 SAMPLE_NAME = "sample_C3902_78-123s.mp4"
 
-app = FastAPI(title="WIUT CV demo")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Run the sample once at startup, so the first visitor who clicks it gets the result at once."""
+    if SAMPLE.exists():
+        sample_job()
+    yield
+
+
+app = FastAPI(title="WIUT CV demo", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=os.environ.get("DEMO_ORIGINS", "*").split(","),
                    allow_methods=["GET", "POST"], allow_headers=["*"])
 jobs = JobQueue()
