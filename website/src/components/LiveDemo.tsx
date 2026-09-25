@@ -166,8 +166,8 @@ export function LiveDemo() {
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs">
           <span className="text-muted">
-            Accepts <strong className="text-text">.mp4, up to 2 minutes and {MAX_MB} MB</strong>. It runs on CPU, so expect
-            several minutes for a 2-minute clip.
+            Accepts <strong className="text-text">.mp4, up to 2 minutes and {MAX_MB} MB</strong>. It runs on 2 CPU cores, so
+            processing takes about 4–5× the clip length (a 20 s clip ≈ 1.5 min, a 2-minute clip ≈ 9 min).
           </span>
           <ServerBadge health={health} />
         </div>

@@ -1,4 +1,4 @@
-"""Live demo API (Hugging Face Space, CPU): upload an .mp4, get events, risk and annotated playback.
+"""Live demo API (Docker, CPU): upload an .mp4, get events, risk and annotated playback.
 
     uvicorn demo.app:app --port 7860            # from the repository root
 

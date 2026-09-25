@@ -126,7 +126,7 @@ Part B is unscored there. On the samples the risk curve stays below the alarm th
 ## Website and live demo
 
 The team website lives in `website/` (Next.js, static export). The live-demo API is in `demo/`
-(FastAPI, Docker, meant for a CPU Hugging Face Space).
+(FastAPI, Docker, CPU).
 
 ```bash
 # 1. data for the site (runs without the videos: predictions, dev-label metrics, scene layout)
@@ -147,12 +147,15 @@ Point the site at it with `NEXT_PUBLIC_DEMO_API=http://localhost:7860` in `websi
 
 - Endpoints: `POST /jobs` takes the upload (≤ 2 min, ≤ 200 MB), `GET /jobs/{id}` reports progress
   and the result, and `GET /media/{id}.mp4` serves the annotated video.
-- On CPU the demo defaults to YOLO11n at 5 fps (`DEMO_DETECTOR`, `DEMO_SAMPLE_INTERVAL`).
+- On CPU the demo defaults to YOLO11n at 5 fps (`DEMO_DETECTOR`, `DEMO_SAMPLE_INTERVAL`). On our
+  deployment (2 ARM cores) a clip takes about 4–5× its length to process.
 
 **Deploy.**
-- Demo: `HF_SPACE=<user>/<space> bash demo/deploy_space.sh` creates a Docker Space from `demo/Dockerfile`.
-- Website: import the repo in Vercel with root directory `website/` and set `NEXT_PUBLIC_DEMO_API`
-  to the Space URL (`https://<user>-<space>.hf.space`).
+- Demo: `DEMO_HOST=<ssh host> DEMO_NETWORK=<docker network> bash demo/deploy_vm.sh` builds the image
+  on any Docker host and runs it on `127.0.0.1:7860`, capped at 2 CPUs / 6 GB. We serve it through a
+  Cloudflare tunnel; any HTTPS reverse proxy works. (`demo/deploy_space.sh` targets a Hugging Face
+  Docker Space instead, which now needs a PRO account.)
+- Website: `cd website && npx vercel --prod`, with `NEXT_PUBLIC_DEMO_API` set to the demo's HTTPS URL.
 
 ## Team
 
