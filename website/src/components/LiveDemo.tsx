@@ -12,7 +12,9 @@ import { EventTimeline, TimelineLegend } from "./EventTimeline";
 import { RiskChart } from "./RiskChart";
 import { Card } from "./ui";
 
-const MAX_MB = 95; // demo/app.py MAX_MB (the Cloudflare tunnel caps uploads at 100 MB)
+const MAX_MB = 4096; // demo/app.py MAX_UPLOAD_MB: big files go up in chunks (the tunnel caps one request at 100 MB)
+const SINGLE_MB = 90; // below this, one plain POST
+const CHUNK_RETRIES = 3;
 const MAX_SECONDS = 120;
 const POLL_MS = 2000;
 const JOB_KEY = "demo-job";
@@ -25,7 +27,7 @@ const STAGES: { key: DemoJob["state"]; label: string }[] = [
   { key: "done", label: "Done" },
 ];
 
-type Health = { detector: string; sample_interval: number; enabled_classes: string[] } | "offline" | null;
+type Health = { detector: string; sample_interval: number; enabled_classes: string[]; sample?: boolean } | "offline" | null;
 
 function videoDuration(file: File): Promise<number> {
   return new Promise((resolve) => {
@@ -105,40 +107,46 @@ export function LiveDemo() {
     setError(null);
     if (!f) return;
     if (!/\.(mp4|mov|m4v)$/i.test(f.name)) return setError("Please choose an .mp4 video.");
-    if (f.size > MAX_MB * 2 ** 20) return setError(`That file is ${(f.size / 2 ** 20).toFixed(0)} MB; the limit is ${MAX_MB} MB.`);
+    if (f.size > MAX_MB * 2 ** 20) return setError(`That file is ${(f.size / 2 ** 30).toFixed(1)} GB; the limit is ${MAX_MB / 1024} GB.`);
     const d = await videoDuration(f);
     if (d > MAX_SECONDS + 1) return setError(`That video is ${Math.round(d)} s long; the demo accepts up to 2 minutes.`);
     setFile(f);
   }, []);
 
-  const submit = () => {
+  const started = (id: string, name: string) => {
+    try {
+      sessionStorage.setItem(JOB_KEY, id);
+    } catch {}
+    setJob({ id, name, state: "queued", progress: 0, queue_position: null, elapsed: 0, error: null, result: null });
+  };
+
+  const submit = async () => {
     if (!file) return;
     setError(null);
     setJob(null);
     setUpload(0);
-    const form = new FormData();
-    form.append("file", file);
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${DEMO_API}/jobs`);
-    xhr.upload.onprogress = (e) => e.lengthComputable && setUpload(e.loaded / e.total);
-    xhr.onload = () => {
+    try {
+      const id = file.size <= SINGLE_MB * 2 ** 20 ? await postWhole(file, setUpload) : await postChunked(file, setUpload);
+      started(id, file.name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
       setUpload(null);
-      let body: { id?: string; detail?: string } = {};
-      try {
-        body = JSON.parse(xhr.responseText);
-      } catch {}
-      if (xhr.status >= 200 && xhr.status < 300 && body.id) {
-        try {
-          sessionStorage.setItem(JOB_KEY, body.id);
-        } catch {}
-        setJob({ id: body.id, name: file.name, state: "queued", progress: 0, queue_position: null, elapsed: 0, error: null, result: null });
-      } else setError(body.detail ?? `Upload failed (HTTP ${xhr.status}).`);
-    };
-    xhr.onerror = () => {
-      setUpload(null);
-      setError("Could not reach the demo server. It may be waking up; try again in a minute.");
-    };
-    xhr.send(form);
+    }
+  };
+
+  const runSample = async () => {
+    setError(null);
+    setJob(null);
+    setFile(null);
+    try {
+      const r = await fetch(`${DEMO_API}/jobs/sample`, { method: "POST" });
+      const body = (await r.json().catch(() => ({}))) as { id?: string; detail?: string };
+      if (!r.ok || !body.id) throw new Error(body.detail ?? `Request failed (HTTP ${r.status}).`);
+      started(body.id, "sample_C3902_78-123s.mp4");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not reach the demo server. Try again in a minute.");
+    }
   };
 
   const reset = () => {
@@ -166,8 +174,9 @@ export function LiveDemo() {
       <Card>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs">
           <span className="text-muted">
-            Accepts <strong className="text-text">.mp4, up to 2 minutes and {MAX_MB} MB</strong>. It runs on 2 CPU cores, so
-            processing takes about 4–5× the clip length (a 20 s clip ≈ 1.5 min, a 2-minute clip ≈ 9 min).
+            Accepts <strong className="text-text">.mp4 up to 2 minutes</strong>, including raw 4K clips straight from the
+            camera (up to {MAX_MB / 1024} GB; large files upload in chunks). It runs on 2 CPU cores, so processing takes about 4–5× the
+            clip length (a 20 s clip ≈ 1.5 min, a 2-minute clip ≈ 9 min).
           </span>
           <ServerBadge health={health} />
         </div>
@@ -207,11 +216,21 @@ export function LiveDemo() {
             >
               {file ? "Choose another" : "Choose a video"}
             </button>
+            {!file && health !== "offline" && health?.sample && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void runSample()}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                Try our sample clip
+              </button>
+            )}
             {file && (
               <button
                 type="button"
                 disabled={busy}
-                onClick={submit}
+                onClick={() => void submit()}
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
               >
                 Run the model
@@ -229,6 +248,12 @@ export function LiveDemo() {
         {error && (
           <p role="alert" className="mt-3 rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">
             {error}
+          </p>
+        )}
+        {health !== "offline" && health?.sample && (
+          <p className="mt-3 text-xs text-muted">
+            The sample is 45 s of the competition camera (C3902, 1:18–2:03) with a jaywalking pedestrian and a vehicle stopped
+            past the stop line on red. Once it has run, the result comes back instantly.
           </p>
         )}
         <p className="mt-3 text-xs text-muted">
@@ -258,6 +283,61 @@ export function LiveDemo() {
       {job?.state === "done" && job.result && <DemoOutput result={job.result} elapsed={job.elapsed} onReset={reset} />}
     </div>
   );
+}
+
+type OnProgress = (fraction: number) => void;
+
+function uploadError(status: number, text: string): Error {
+  let detail: string | undefined;
+  try {
+    detail = (JSON.parse(text) as { detail?: string }).detail;
+  } catch {}
+  return new Error(detail ?? `Upload failed (HTTP ${status}).`);
+}
+
+function send(method: string, url: string, body: Document | XMLHttpRequestBodyInit | null, onProgress?: OnProgress) {
+  return new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    if (onProgress) xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve(xhr.responseText) : reject(uploadError(xhr.status, xhr.responseText)));
+    xhr.onerror = () => reject(new Error("Could not reach the demo server. It may be waking up; try again in a minute."));
+    xhr.send(body);
+  });
+}
+
+/** Small files: one multipart POST. */
+async function postWhole(file: File, onProgress: OnProgress): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const body = JSON.parse(await send("POST", `${DEMO_API}/jobs`, form, onProgress)) as { id: string };
+  return body.id;
+}
+
+/** Large files: start an upload, PUT it in chunks (each retried), then finish it. */
+async function postChunked(file: File, onProgress: OnProgress): Promise<string> {
+  const start = JSON.parse(await send("POST", `${DEMO_API}/uploads`, null)) as { id: string; chunk_mb: number };
+  const size = start.chunk_mb * 2 ** 20;
+  let offset = 0;
+  while (offset < file.size) {
+    const chunk = file.slice(offset, offset + size);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const url = `${DEMO_API}/uploads/${start.id}?offset=${offset}`;
+        const base = offset;
+        const r = JSON.parse(await send("PUT", url, chunk, (f) => onProgress((base + f * chunk.size) / file.size))) as { received: number };
+        offset = r.received;
+        break;
+      } catch (e) {
+        if (attempt >= CHUNK_RETRIES) throw e;
+      }
+    }
+  }
+  onProgress(1);
+  const done = JSON.parse(await send("POST", `${DEMO_API}/uploads/${start.id}/finish?name=${encodeURIComponent(file.name)}`, null)) as {
+    id: string;
+  };
+  return done.id;
 }
 
 function ServerBadge({ health }: { health: Health }) {

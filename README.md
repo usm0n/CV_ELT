@@ -16,6 +16,21 @@ python evaluate.py --pred predictions.json --gt ground_truth.json
 Weights (`weights/yolo11m.pt` 39 MB, `weights/yolo11n.pt` 5 MB) are in the repo, so no
 download is needed and the run works offline.
 
+**Tested on a clean machine.** In a fresh `python:3.10-slim` container (x86_64, 8 cores, no GPU,
+no libGL) the two commands above run unchanged with pip 23, and the harness runs with the
+network disabled (`docker run --network none`); the output validates with 0 errors.
+`requirements.txt` also resolves on Python 3.10–3.13. Three details make that work:
+
+- **torch from the CUDA 12.6 index** (`--extra-index-url` in `requirements.txt`). PyPI's default
+  Linux wheels of torch 2.14 are CUDA 13 builds, which need NVIDIA driver 580 or newer; the
+  cu126 wheels run on any driver from 525 up, T4 included.
+- **Headless OpenCV only.** We install `ultralytics-opencv-headless` (the same release as
+  `ultralytics`) and ship ByteTrack in `src/vendor/` rather than depending on `trackers`, because
+  both of those PyPI packages pull in the GUI build of OpenCV. It overwrites the headless one, and
+  `import cv2` then fails on a server without libxcb/libGL.
+- **Python 3.10 pins.** numpy, scipy and PyAV dropped 3.10 in the releases we use on 3.11+, so
+  3.10 gets their last compatible versions through environment markers.
+
 ## How it works
 
 ```
@@ -74,7 +89,11 @@ WIUT_CACHE_DIR=.cache python tools/scan_samples.py samples        # detect+track
 WIUT_CACHE_DIR=.cache python tools/dev_eval.py stop_line jaywalking  # per-class F1 vs dev labels
 WIUT_CACHE_DIR=.cache python tools/review_candidates.py samples/C3896.MP4 jaywalking  # contact sheets
 python tools/risk_scan.py samples                                   # Part B false-alarm check
+python tools/ablation.py                                            # detector / fps / input-size ablation
 ```
+
+The website's Results page shows the output of the last two tools: an error analysis of the dev
+set (every miss and false alarm by cause, class confusion, boundary offsets) and the ablation.
 
 ## Reproducibility
 
@@ -89,19 +108,27 @@ python tools/risk_scan.py samples                                   # Part B fal
 - **`predictions_samples.json`** is the harness output on the four sample videos, from the
   tagged commit:
   `python run_submission.py --videos samples --out predictions_samples.json --team Solution`.
+- **Hardware profile.** `src/config.py` picks the perception settings from the hardware, not
+  from timing: with CUDA or Apple MPS it runs YOLO11m at 10 fps (everything on this page);
+  on CPU only it runs YOLO11n at 5 fps (the live demo's settings), because the full profile would
+  overrun the time budget on CPU and a video over budget scores as empty. `WIUT_PROFILE=full|light`
+  forces one. The choice is the same on every run on a given machine.
 - **The only timing-dependent behaviour** is Part B's budget guard. If the projected wall time
-  would exceed 85% of the 3× budget, `RiskEstimator` stops running the detector and holds its
-  last score. On our laptop the longest sample (C3896) came close to that limit. On a
-  CUDA machine, where Part A and the decode run faster, it should not trigger. If it does, two
-  runs can differ in the risk curve's tail, but never in Part A's events.
+  would exceed 85% of the 3× budget, `RiskEstimator` stops running its detector and holds its last
+  score, and says so on stderr (`risk: time budget guard engaged at t=…`). It may act only after the
+  first 10 s of a video: earlier projections mostly scale up start-up cost, and in v2 that made it
+  skip early frames at random, so risk curves differed between runs. Part B is otherwise
+  exactly deterministic (two runs: max difference 0.0 on MPS and on CPU). The guard did not engage
+  while producing `predictions_samples.json`, so any machine that stays inside the budget
+  reproduces the file, events and risk curves both. Part A's events never depend on timing.
 
 ## Models, data and licences
 
 | component | used for | licence |
 |---|---|---|
 | YOLO11m / YOLO11n weights (Ultralytics), COCO-pretrained | vehicle and person detection | AGPL-3.0 (weights); COCO annotations CC BY 4.0 |
-| `ultralytics` | inference wrapper | AGPL-3.0 |
-| `trackers` (Roboflow), ByteTrack | multi-object tracking | Apache-2.0 |
+| `ultralytics-opencv-headless` (Ultralytics' headless build of `ultralytics`) | inference wrapper | AGPL-3.0 |
+| ByteTrack from `trackers` 2.6.0 (Roboflow), vendored in `src/vendor/trackers` (import paths changed only) | multi-object tracking | Apache-2.0 (`src/vendor/trackers/LICENSE`) |
 | `supervision` | detection containers | MIT |
 | PyAV (`av`) | 4K decode with B-frame skipping | BSD-3-Clause |
 | OpenCV, NumPy, SciPy, PyTorch | image ops, maths, inference | Apache-2.0 / BSD |
@@ -114,6 +141,17 @@ as a dev set for choosing rules and thresholds.
 
 Full harness run on the four samples, on an Apple M-series laptop (MPS, no CUDA). All four
 videos finished inside the 3× budget, and the output validates with 0 errors:
+
+Decoding is the part of the budget that a GPU does not shrink. On an 8-thread x86 server (a 2012
+Intel i7-3770), the harness's own pass over every 4K frame (OpenCV) takes 0.70× the video length and
+our reference-frame pass (PyAV) 0.47×, so decoding uses 1.17× of the 3× budget. Detection on a T4
+adds far less, so we expect about 1.5–2× there, and Part B's budget guard stays idle.
+
+CPU fallback, clean `python:3.10-slim` container on an 8-core x86_64 server with no GPU (the
+light profile, see Reproducibility): a 31 s clip of C3905 took 80 s against a 93 s budget.
+
+Measured on v2. The v3 run that produced `predictions_samples.json` took 772 / 725 / 742 / 289 s in
+total, all inside the budget, and the guard never engaged:
 
 | video | length | Part A | Part B (harness decode + risk) | total / budget |
 |---|---|---|---|---|
@@ -148,13 +186,17 @@ placeholder until step 2 has been run and its output in `website/public/` is com
 `pip install -r requirements.txt -r demo/requirements.txt && uvicorn demo.app:app --port 7860`.
 Point the site at it with `NEXT_PUBLIC_DEMO_API=http://localhost:7860` in `website/.env.local`.
 
-- Endpoints: `POST /jobs` takes the upload (≤ 2 min, ≤ 95 MB), `GET /jobs/{id}` reports progress
-  and the result, and `GET /media/{id}.mp4` serves the annotated video.
+- Endpoints: `POST /jobs` takes an upload up to 95 MB; bigger files (raw 4K clips from the camera
+  are ~18 MB/s) go through `POST /uploads`, `PUT /uploads/{id}?offset=` in 32 MB chunks (a retried
+  chunk is detected by its offset) and `POST /uploads/{id}/finish`, since the Cloudflare tunnel
+  caps one request at 100 MB. `POST /jobs/sample` runs a bundled 45 s clip of C3902 and reuses the
+  finished result. `GET /jobs/{id}` reports progress and the result, and `GET /media/{id}.mp4`
+  serves the annotated video. Clips are limited to 2 minutes.
 - On CPU the demo defaults to YOLO11n at 5 fps (`DEMO_DETECTOR`, `DEMO_SAMPLE_INTERVAL`). On our
   deployment (2 ARM cores) a clip takes about 4–5× its length to process.
 
 **Deploy.**
-- Demo: `DEMO_HOST=<ssh host> DEMO_NETWORK=<docker network> bash demo/deploy_vm.sh` builds the image
+- Demo: `DEMO_HOST=<ssh host> DEMO_NETWORK=<docker network> [DEMO_SAMPLE_FILE=sample.mp4] bash demo/deploy_vm.sh` builds the image
   on any Docker host and runs it on `127.0.0.1:7860`, capped at 2 CPUs / 6 GB. We serve it through a
   Cloudflare tunnel; any HTTPS reverse proxy works. (`demo/deploy_space.sh` targets a Hugging Face
   Docker Space instead, which now needs a PRO account.)

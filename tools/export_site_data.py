@@ -6,6 +6,7 @@
 Always written (from files in the repo):
     results.json   per video: predicted events, dev labels, match status, risk curve (2 Hz)
     metrics.json   official evaluate.py Part A report of the predictions against labels/dev_labels.json
+    errors.json    error analysis: every miss / false alarm by cause, boundary offsets, class confusion
     scene.json     scene layout (src/scene/scene.yaml) and lane directions (src/scene/priors.npz)
     predictions_samples.json, media/reference.jpg (copies, for the Links section)
 
@@ -86,6 +87,54 @@ def export_metrics(pred: dict, labels: dict) -> None:
     _dump("metrics.json", {"score_a": rep["part_a"]["score_a"], "part_a": rep["part_a"],
                            "note": "Predictions vs our own single-annotator dev labels (labels/dev_labels.json)."})
     print(f"  dev Score A = {rep['part_a']['score_a']:.3f}")
+
+
+def export_errors(pred: dict, labels: dict) -> None:
+    """Why each unmatched segment is unmatched (at MATCH_TIOU), how far off matched boundaries are,
+    and a class-confusion table (class-agnostic matching at tIoU >= 0.3, "none" = unmatched)."""
+    items, offsets, confusion = [], {}, {}
+    enabled = {e[2] for v in pred["videos"].values() for e in v["events"]}
+    for vid, v in sorted(pred["videos"].items()):
+        events = [tuple(e[:3]) for e in v["events"]]
+        dev = [tuple(e[:3]) for e in labels.get(vid, {"events": []})["events"]]
+        for c in sorted({e[2] for e in events + dev}):
+            ps = [e[:2] for e in events if e[2] == c]
+            gs = [e[:2] for e in dev if e[2] == c]
+            p_ok, g_ok = match_flags(gs, ps, MATCH_TIOU)
+            for p, ok in zip(ps, p_ok):
+                if ok:
+                    g = max(gs, key=lambda g: evaluate.tiou(p, g))
+                    offsets.setdefault(c, []).append([round(p[0] - g[0], 2), round(p[1] - g[1], 2)])
+                else:
+                    # "boundary": overlaps a label of its class, but below the IoU threshold
+                    cause = "boundary" if any(evaluate.tiou(p, g) > 0 for g in gs) else "false_alarm"
+                    items.append({"video": vid, "kind": "fp", "label": c, "seg": list(p), "cause": cause})
+            for g, ok in zip(gs, g_ok):
+                if ok:
+                    continue
+                if c not in enabled:
+                    cause = "class_off"    # a class we deliberately do not predict
+                else:
+                    cause = "boundary" if any(evaluate.tiou(g, p) > 0 for p in ps) else "missed"
+                items.append({"video": vid, "kind": "fn", "label": c, "seg": list(g), "cause": cause})
+        # class confusion: pair every label with the best-overlapping prediction of any class
+        pairs = sorted(((evaluate.tiou(g[:2], p[:2]), i, j) for i, g in enumerate(dev) for j, p in enumerate(events)),
+                       reverse=True)
+        g_used, p_used = set(), set()
+        for iou, i, j in pairs:
+            if iou >= 0.3 and i not in g_used and j not in p_used:
+                g_used.add(i)
+                p_used.add(j)
+                key = f"{dev[i][2]}|{events[j][2]}"
+                confusion[key] = confusion.get(key, 0) + 1
+        for i, g in enumerate(dev):
+            if i not in g_used:
+                confusion[f"{g[2]}|none"] = confusion.get(f"{g[2]}|none", 0) + 1
+        for j, p in enumerate(events):
+            if j not in p_used:
+                confusion[f"none|{p[2]}"] = confusion.get(f"none|{p[2]}", 0) + 1
+    _dump("errors.json", {"match_tiou": MATCH_TIOU, "items": items, "boundary_offsets": offsets,
+                          "confusion": confusion})
 
 
 def export_scene() -> None:
@@ -235,6 +284,7 @@ def main() -> None:
     labels = json.loads((ROOT / "labels/dev_labels.json").read_text())
     export_results(pred, labels)
     export_metrics(pred, labels)
+    export_errors(pred, labels)
     export_scene()
     shutil.copy(ROOT / "predictions_samples.json", DATA / "predictions_samples.json")
     if args.videos:

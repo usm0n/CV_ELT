@@ -26,6 +26,22 @@ VEHICLE_CLASSES = {"car", "motorcycle", "bus", "truck"}
 # with an IBBP GOP this is exactly the reference frames, see src/video.py).
 SAMPLE_INTERVAL = 0.1
 
+# Without a GPU (CUDA, or Apple MPS) the profile above overruns the 3x time budget, and a video over
+# budget scores as empty. On CPU we switch to the live demo's light profile (YOLO11n, 5 fps): fewer
+# and later detections, but every video finishes. WIUT_PROFILE=full|light forces one.
+def _accelerated() -> bool:
+    try:
+        import torch
+    except ImportError:
+        return False
+    return torch.cuda.is_available() or torch.backends.mps.is_available()
+
+
+PROFILE = os.environ.get("WIUT_PROFILE") or ("full" if _accelerated() else "light")
+if PROFILE == "light":
+    DETECTOR_WEIGHTS = WEIGHTS_DIR / "yolo11n.pt"
+    SAMPLE_INTERVAL = 0.2
+
 # Dev-only cache for detections (never used by the official harness unless set).
 CACHE_DIR = Path(os.environ["WIUT_CACHE_DIR"]) if os.environ.get("WIUT_CACHE_DIR") else None
 

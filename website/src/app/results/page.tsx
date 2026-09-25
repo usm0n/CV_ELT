@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 
+import { AblationTable } from "@/components/AblationTable";
+import { ErrorAnalysis } from "@/components/ErrorAnalysis";
 import { MetricsTable } from "@/components/MetricsTable";
 import { Card, PageHeader, Pending, Section, Swatch } from "@/components/ui";
 import { VideoResults, type VideoEntry } from "@/components/VideoResults";
 import { eventColor } from "@/lib/colors";
-import { loadEda, loadExamples, loadMetrics, loadResults, mediaUrl, stem } from "@/lib/data";
+import { loadAblation, loadEda, loadErrors, loadExamples, loadMetrics, loadResults, mediaUrl, stem } from "@/lib/data";
 import { fmtTime, labelName } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Results" };
@@ -37,6 +39,8 @@ export default function ResultsPage() {
   const metrics = loadMetrics();
   const eda = loadEda();
   const examples = loadExamples();
+  const errors = loadErrors();
+  const ablation = loadAblation();
   if (!results || !metrics) return <Pending what="Results" />;
 
   const videos: VideoEntry[] = Object.entries(results.videos).map(([id, result]) => ({
@@ -76,6 +80,30 @@ export default function ResultsPage() {
       >
         <MetricsTable metrics={metrics} />
       </Section>
+
+      <Section
+        id="errors"
+        title="Error analysis"
+        lead="Where the dev-set errors come from. Most are boundaries, not detections: the model finds the right event and the segment edges are off."
+      >
+        {errors ? <ErrorAnalysis errors={errors} /> : <Pending what="Error analysis" />}
+      </Section>
+
+      {ablation && (
+        <Section
+          id="ablations"
+          title="Ablations: detector, frame rate, input size"
+          lead={
+            <>
+              The same rules on detections from different settings. The first row is the submission. The fourth is the
+              profile the code switches to by itself on a machine without a GPU, and the one the live demo runs, so a
+              missing GPU costs accuracy instead of scoring every video as empty.
+            </>
+          }
+        >
+          <AblationTable ablation={ablation} />
+        </Section>
+      )}
 
       <Section title="Examples of each class we detect" lead="One annotated still per predicted event, taken at the midpoint of the segment.">
         {byClass.size === 0 ? (

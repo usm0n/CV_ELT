@@ -31,7 +31,7 @@ const DISABLED = [
 const MODELS = [
   ["YOLO11m (Ultralytics), COCO-pretrained", "Part A detection", "AGPL-3.0 weights; COCO annotations CC BY 4.0"],
   ["YOLO11n (Ultralytics), COCO-pretrained", "Part B detection (light)", "AGPL-3.0"],
-  ["ByteTrack (Roboflow trackers)", "multi-object tracking", "Apache-2.0"],
+  ["ByteTrack (from Roboflow trackers 2.6.0, vendored in src/vendor)", "multi-object tracking", "Apache-2.0"],
   ["supervision", "detection containers", "MIT"],
   ["PyAV", "4K decode with B-frame skipping", "BSD-3-Clause"],
   ["OpenCV, NumPy, SciPy, PyTorch", "image ops, maths, inference", "Apache-2.0 / BSD"],
@@ -41,6 +41,7 @@ const STEPS = [
   ["Registration", "src/scene/registration.py", "Median of 12 keyframes → SIFT (4000 features) → RANSAC homography onto the reference view. Falls back to a pure scale when fewer than 25 inliers survive."],
   ["Decoding", "src/video.py", "PyAV with skip_frame = NONREF. At 29.97 fps with an IBBP GOP this yields exactly the ~10 fps of reference frames for a third of the decode cost. Frames are scaled to 1920 px inside the decoder."],
   ["Detection + tracking", "src/perception/", "YOLO11m at imgsz 960, confidence 0.25, batch 16, 6 COCO road-user classes. ByteTrack at 10 fps with a 2 s lost-track buffer."],
+  ["Hardware profile", "src/config.py", "Chosen from the hardware, never from timing, so runs stay deterministic: with CUDA or Apple MPS the settings above; on CPU only YOLO11n at 5 fps, because the full profile would overrun the 3× budget and an over-budget video scores as empty. The Results page compares both."],
   ["Trajectories", "src/tracks.py", "Per track: bottom-centre foot point mapped to reference pixels, smoothed over 5 samples, velocity by finite differences, speed also expressed in body heights per second."],
   ["Signal", "src/scene/signal.py", "Every 0.4 s, crops of the three lamps at full 4K resolution, HSV hue ranges for lit red / amber / green, smoothed with a minimum run length."],
   ["Rules → segments", "src/events/", "Each class is one function from context to candidate intervals. Candidates are merged across gaps < 1 s, blips < 0.5 s are dropped, and segments never overlap within a class."],

@@ -7,7 +7,7 @@ from typing import Callable
 
 import numpy as np
 import supervision as sv
-from trackers import ByteTrackTracker
+from src.vendor.trackers.core.bytetrack.tracker import ByteTrackTracker
 
 from src import config
 from src.perception.detector import Detector

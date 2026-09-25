@@ -1,12 +1,18 @@
-# Python >= 3.10. Linux wheels of torch from PyPI include CUDA (runs on the T4).
-numpy==2.4.6
+# Python >= 3.10. On Linux, torch/torchvision come from the CUDA 12.6 index: those wheels run on
+# any NVIDIA driver >= 525 (T4 included). PyPI's default Linux wheels are CUDA 13 builds, which
+# need driver >= 580 and would otherwise fall back to CPU. macOS/Windows resolve from PyPI as usual.
+--extra-index-url https://download.pytorch.org/whl/cu126
+numpy==2.4.6; python_version >= "3.11"
+numpy==2.2.6; python_version < "3.11"   # numpy/scipy/av dropped 3.10 in these releases
 opencv-python-headless==5.0.0.93
-av==18.1.0
+av==18.1.0; python_version >= "3.11"
+av==17.1.0; python_version < "3.11"
 torch==2.14.0
 torchvision==0.29.0
-ultralytics==8.4.160
+ultralytics-opencv-headless==8.4.160   # same code as `ultralytics`, but depends on opencv-python-headless:
+#   the GUI build it would pull in replaces cv2 and fails to import on a server without libxcb/libGL
 supervision==0.30.5
-scipy==1.17.1
+scipy==1.17.1; python_version >= "3.11"
+scipy==1.15.3; python_version < "3.11"
 pyyaml==6.0.3
 lap==0.5.13
-trackers==2.6.0

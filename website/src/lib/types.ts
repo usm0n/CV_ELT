@@ -108,3 +108,36 @@ export interface EventExample {
   t: number;
   img: string;
 }
+
+export interface AblationRow {
+  name: string;
+  weights: string;
+  fps: number;
+  imgsz: number;
+  score_a: number;
+  per_class: Record<string, number>;
+  part_a_sec: number;
+  x_realtime: number;
+}
+
+export interface Ablation {
+  machine: string;
+  classes: string[];
+  video_sec: number;
+  rows: AblationRow[];
+}
+
+export interface ErrorItem {
+  video: string;
+  kind: "fp" | "fn";
+  label: string;
+  seg: [number, number];
+  cause: "boundary" | "false_alarm" | "missed" | "class_off";
+}
+
+export interface Errors {
+  match_tiou: number;
+  items: ErrorItem[];
+  boundary_offsets: Record<string, [number, number][]>;
+  confusion: Record<string, number>;
+}

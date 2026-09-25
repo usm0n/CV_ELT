@@ -11,6 +11,7 @@ threshold, so an alarm means "sharper than anything in normal traffic here".
 """
 from __future__ import annotations
 
+import sys
 import time
 
 import cv2
@@ -35,6 +36,9 @@ EMA = 0.5                  # smoothing of the raw score between processed frames
 KNEE = 0.96
 TIME_FACTOR = 3.0          # official budget: Part A + Part B <= 3 x video duration
 SAFETY = 0.85              # never plan past this share of the budget
+# The guard projects the whole run from the time used so far, which over the first seconds is
+# mostly start-up cost multiplied by (duration / t); it may only act after GUARD_AFTER seconds.
+GUARD_AFTER = 10.0
 ROAD_USERS = {2, 3, 5, 7, 0, 1}   # car, motorcycle, bus, truck, person, bicycle
 VEHICLES = {2, 3, 5, 7}
 
@@ -48,6 +52,7 @@ def calibrate(raw: float) -> float:
 class RiskModel:
     def __init__(self) -> None:
         self.detector = Detector(weights=RISK_WEIGHTS, imgsz=RISK_WIDTH)
+        self.detector([np.zeros((720, RISK_WIDTH, 3), np.uint8)])   # load and warm up outside the timed run
         self.reset()
 
     def reset(self, duration: float = 0.0, part_a_sec: float = 0.0) -> None:
@@ -60,6 +65,7 @@ class RiskModel:
         self.raw = 0.0
         self.busy = 0.0            # s of wall time spent in processed steps
         self.duration = duration
+        self.guarding = False
 
     def _affordable(self, t: float) -> bool:
         """Would one more processed frame still let the harness finish the video in time?
@@ -67,13 +73,17 @@ class RiskModel:
         Projects the rest of the run from what has been seen: harness decoding (wall time not
         spent in our steps) scales with the frames left, our own work with the steps left.
         """
-        if self.duration <= 0 or t < 2.0:
+        if self.duration <= 0 or t < GUARD_AFTER:
             return True
         elapsed = time.perf_counter() - self.wall0
         left = max(self.duration - t, 0.0) / t
         decode = (elapsed - self.busy) * left
         ours = self.busy * left
-        return elapsed + decode + ours < self.budget
+        ok = elapsed + decode + ours < self.budget
+        if not ok and not self.guarding:
+            print(f"risk: time budget guard engaged at t={t:.1f}s; holding the last score", file=sys.stderr)
+        self.guarding = not ok
+        return ok
 
     def step(self, frame: np.ndarray, t: float) -> float:
         # the harness decodes every 4K frame on top of Part A; skip work rather than bust the budget

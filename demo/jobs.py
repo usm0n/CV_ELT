@@ -19,6 +19,7 @@ import cv2
 
 JOBS_DIR = Path(os.environ.get("DEMO_JOBS_DIR", "/tmp/demo_jobs"))
 KEEP_JOBS = 20
+ABANDONED_SEC = 3600       # an unfinished chunked upload is dropped after an hour
 # Share of the progress bar per stage (Part A dominates the runtime).
 STAGES = {"analyzing": (0.0, 0.7), "risk": (0.7, 0.9), "rendering": (0.9, 1.0)}
 
@@ -46,6 +47,7 @@ class JobQueue:
     def __init__(self) -> None:
         self.jobs: dict[str, Job] = {}
         self.order: list[str] = []
+        self.pinned: str | None = None
         self.lock = threading.Lock()
         self.q: queue.Queue[str] = queue.Queue()
         JOBS_DIR.mkdir(parents=True, exist_ok=True)
@@ -53,26 +55,37 @@ class JobQueue:
 
     # --- API -----------------------------------------------------------------
     def new_job_dir(self) -> tuple[str, Path]:
+        self._drop_abandoned()
         job_id = uuid.uuid4().hex[:12]
         d = JOBS_DIR / job_id
         d.mkdir(parents=True)
         return job_id, d
 
-    def submit(self, job_id: str, name: str) -> Job:
+    def submit(self, job_id: str, name: str, pin: bool = False) -> Job:
+        """Queue a job. A pinned job (the sample clip) is never pruned, so its result can be reused."""
         job = Job(id=job_id, name=name)
         with self.lock:
             self.jobs[job_id] = job
-            self.order.append(job_id)
-            self._prune()
+            if pin:
+                self.pinned = job_id
+            else:
+                self.order.append(job_id)
+                self._prune()
         self.q.put(job_id)
         return job
+
+    def pinned_job(self) -> str | None:
+        """The pinned job if it is queued, running or done; None after a failure, so it can be retried."""
+        with self.lock:
+            job = self.jobs.get(self.pinned or "")
+            return job.id if job is not None and job.state != "error" else None
 
     def get(self, job_id: str) -> dict | None:
         with self.lock:
             job = self.jobs.get(job_id)
             if job is None:
                 return None
-            waiting = [j for j in self.order if self.jobs[j].state == "queued"]
+            waiting = [j for j in self.jobs if self.jobs[j].state == "queued"]
             pos = waiting.index(job_id) if job_id in waiting else None
             return job.public(pos)
 
@@ -85,6 +98,18 @@ class JobQueue:
             self.order.pop(0)
             self.jobs.pop(old, None)
             shutil.rmtree(JOBS_DIR / old, ignore_errors=True)
+
+    def _drop_abandoned(self) -> None:
+        """Delete upload folders that never became a job (chunked uploads left unfinished)."""
+        cutoff = time.time() - ABANDONED_SEC
+        with self.lock:
+            known = set(self.jobs)
+        for d in JOBS_DIR.iterdir():
+            if not d.is_dir() or d.name in known:
+                continue
+            touched = max((f.stat().st_mtime for f in d.iterdir()), default=d.stat().st_mtime)
+            if touched < cutoff:
+                shutil.rmtree(d, ignore_errors=True)
 
     def _set(self, job: Job, state: str, frac: float = 0.0) -> None:
         lo, hi = STAGES.get(state, (1.0, 1.0))
