@@ -34,7 +34,7 @@ config.SAMPLE_INTERVAL = float(os.environ.get("DEMO_SAMPLE_INTERVAL", "0.2"))
 
 from demo.jobs import JOBS_DIR, JobQueue  # noqa: E402
 
-MAX_MB = 200
+MAX_MB = 95                  # the Cloudflare tunnel in front rejects request bodies over 100 MB
 MAX_SECONDS = 150            # the page asks for <= 2 min; a little slack for rounding
 CHUNK = 1 << 20
 

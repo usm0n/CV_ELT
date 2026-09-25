@@ -12,7 +12,7 @@ import { EventTimeline, TimelineLegend } from "./EventTimeline";
 import { RiskChart } from "./RiskChart";
 import { Card } from "./ui";
 
-const MAX_MB = 200;
+const MAX_MB = 95; // demo/app.py MAX_MB (the Cloudflare tunnel caps uploads at 100 MB)
 const MAX_SECONDS = 120;
 const POLL_MS = 2000;
 const JOB_KEY = "demo-job";

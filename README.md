@@ -4,6 +4,9 @@ We detect traffic events at a signalised junction from a fixed 4K road camera (P
 give a causal accident-risk score for each frame (Part B). The organizers' harness calls
 `solution.py`, and everything behind it lives in `src/`.
 
+**Website:** <https://wiut-cv-solution.vercel.app> · **Live demo:** <https://wiut-cv-solution.vercel.app/demo/>
+(API: <https://wiut-demo.umarfamily.uz/health>)
+
 ```bash
 pip install -r requirements.txt
 python run_submission.py --videos /data/test --out predictions.json --team Solution
@@ -145,7 +148,7 @@ placeholder until step 2 has been run and its output in `website/public/` is com
 `pip install -r requirements.txt -r demo/requirements.txt && uvicorn demo.app:app --port 7860`.
 Point the site at it with `NEXT_PUBLIC_DEMO_API=http://localhost:7860` in `website/.env.local`.
 
-- Endpoints: `POST /jobs` takes the upload (≤ 2 min, ≤ 200 MB), `GET /jobs/{id}` reports progress
+- Endpoints: `POST /jobs` takes the upload (≤ 2 min, ≤ 95 MB), `GET /jobs/{id}` reports progress
   and the result, and `GET /media/{id}.mp4` serves the annotated video.
 - On CPU the demo defaults to YOLO11n at 5 fps (`DEMO_DETECTOR`, `DEMO_SAMPLE_INTERVAL`). On our
   deployment (2 ARM cores) a clip takes about 4–5× its length to process.
