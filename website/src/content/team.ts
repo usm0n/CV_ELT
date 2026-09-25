@@ -1,6 +1,4 @@
-// Team section content. Fill in the TODO fields; empty links are simply not shown.
-// Roles come from the README; the contribution lists are drafts written from those roles —
-// each member should confirm or correct their own.
+// Team section content. Empty links are simply not shown; a project's note is optional.
 
 export interface Member {
   name: string;
@@ -9,7 +7,7 @@ export interface Member {
   github?: string;
   linkedin?: string;
   portfolio?: string;
-  projects: { name: string; url?: string; note: string }[];
+  projects: { name: string; url?: string; note?: string }[];
 }
 
 export const TEAM: Member[] = [
@@ -23,9 +21,9 @@ export const TEAM: Member[] = [
       "Dev-set labelling, evaluation and the submission package",
     ],
     github: "https://github.com/usm0n",
-    linkedin: "", // TODO
-    portfolio: "", // TODO
-    projects: [], // TODO: { name, url, note }
+    linkedin: "",
+    portfolio: "",
+    projects: [{ name: "smile-movies.uz", url: "https://smile-movies.uz" }],
   },
   {
     name: "Mustafo Botirov",
@@ -36,9 +34,9 @@ export const TEAM: Member[] = [
       "Data export for the website (tools/export_site_data.py)",
     ],
     github: "https://github.com/botirovdevv",
-    linkedin: "", // TODO
-    portfolio: "", // TODO
-    projects: [], // TODO
+    linkedin: "",
+    portfolio: "",
+    projects: [{ name: "prep-zone.uz", url: "https://www.prep-zone.uz" }],
   },
   {
     name: "Aziz Erkayev",
@@ -48,9 +46,9 @@ export const TEAM: Member[] = [
       "Runtime checks against the 3× time budget",
       "Website and demo testing on desktop and phone",
     ],
-    github: "", // TODO
-    linkedin: "", // TODO
-    portfolio: "", // TODO
-    projects: [], // TODO
+    github: "",
+    linkedin: "",
+    portfolio: "",
+    projects: [{ name: "baraka-top.uz", url: "https://baraka-top.uz" }],
   },
 ];

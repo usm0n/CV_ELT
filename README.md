@@ -156,8 +156,8 @@ Point the site at it with `NEXT_PUBLIC_DEMO_API=http://localhost:7860` in `websi
 
 ## Team
 
-| member | role |
-|---|---|
-| Usmon Reyimberganov ([@usm0n](https://github.com/usm0n)) | captain, full-stack: pipeline, rules, evaluation |
-| Mustafo Botirov ([@botirovdevv](https://github.com/botirovdevv)) | frontend: project website |
-| Aziz Erkayev | testing / QA |
+| member | role | previous project |
+|---|---|---|
+| Usmon Reyimberganov ([@usm0n](https://github.com/usm0n)) | captain, full-stack: pipeline, rules, evaluation | [smile-movies.uz](https://smile-movies.uz) |
+| Mustafo Botirov ([@botirovdevv](https://github.com/botirovdevv)) | frontend: project website | [prep-zone.uz](https://www.prep-zone.uz) |
+| Aziz Erkayev | testing / QA | [baraka-top.uz](https://baraka-top.uz) |

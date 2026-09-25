@@ -55,7 +55,7 @@ export default function TeamPage() {
                         ) : (
                           <span className="font-medium">{p.name}</span>
                         )}
-                        <span className="text-muted">: {p.note}</span>
+                        {p.note && <span className="text-muted">: {p.note}</span>}
                       </li>
                     ))}
                   </ul>
