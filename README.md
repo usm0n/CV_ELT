@@ -204,8 +204,8 @@ Point the site at it with `NEXT_PUBLIC_DEMO_API=http://localhost:7860` in `websi
 
 ## Team
 
-| member | role | previous project |
-|---|---|---|
-| Usmon Reyimberganov ([@usm0n](https://github.com/usm0n)) | captain, full-stack: pipeline, rules, evaluation | [smile-movies.uz](https://smile-movies.uz) |
-| Mustafo Botirov ([@botirovdevv](https://github.com/botirovdevv)) | frontend: project website | [prep-zone.uz](https://www.prep-zone.uz) |
-| Aziz Erkayev | testing / QA | [baraka-top.uz](https://baraka-top.uz) |
+| member | role | previous project | links |
+|---|---|---|---|
+| Usmon Reyimberganov ([@usm0n](https://github.com/usm0n)) | captain, full-stack: pipeline, rules, evaluation | [smile-movies.uz](https://smile-movies.uz) | [portfolio](https://team-solution-iota.vercel.app/en/team/usmon-reyimberganov) · [LinkedIn](https://linkedin.com/in/usm0n) |
+| Mustafo Botirov ([@botirovdevv](https://github.com/botirovdevv)) | frontend: project website | [prep-zone.uz](https://www.prep-zone.uz) | [portfolio](https://team-solution-iota.vercel.app/en/team/mustafo-botirov) · [LinkedIn](https://linkedin.com/in/botirovdev) |
+| Aziz Erkayev ([@Jentelmen01](https://github.com/Jentelmen01)) | testing / QA | [baraka-top.uz](https://baraka-top.uz) | [portfolio](https://team-solution-iota.vercel.app/en/team/azizbek-erkayev) · [LinkedIn](https://www.linkedin.com/in/azizbek-erkayev-7066a9415) |
