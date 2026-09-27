@@ -23,7 +23,7 @@ export const TEAM: Member[] = [
     github: "https://github.com/usm0n",
     linkedin: "https://linkedin.com/in/usm0n",
     portfolio: "https://team-solution-iota.vercel.app/en/team/usmon-reyimberganov",
-    projects: [{ name: "smile-movies.uz", url: "https://smile-movies.uz" }],
+    projects: [{ name: "smile-movies.uz", url: "https://smile-movies.uz" }, { name: "xorazmvbsks.uz", url: "https://xorazmvbsks.uz" }],
   },
   {
     name: "Mustafo Botirov",
@@ -36,7 +36,7 @@ export const TEAM: Member[] = [
     github: "https://github.com/botirovdevv",
     linkedin: "https://linkedin.com/in/botirovdev",
     portfolio: "https://team-solution-iota.vercel.app/en/team/mustafo-botirov",
-    projects: [{ name: "prep-zone.uz", url: "https://www.prep-zone.uz" }],
+    projects: [{ name: "prep-zone.uz", url: "https://www.prep-zone.uz" }, { name: "xorazmvbsks.uz", url: "https://xorazmvbsks.uz" }],
   },
   {
     name: "Aziz Erkayev",
