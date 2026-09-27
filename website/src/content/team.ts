@@ -1,7 +1,10 @@
 // Team section content. Empty links are simply not shown; a project's note is optional.
 
+const PROFILE_BASE = "https://team-solution-iota.vercel.app/en/team";
+
 export interface Member {
   name: string;
+  slug: string; // profile page: PROFILE_BASE/<slug>
   role: string;
   contributions: string[];
   github?: string;
@@ -10,9 +13,12 @@ export interface Member {
   projects: { name: string; url?: string; note?: string }[];
 }
 
+export const profileUrl = (m: Member) => `${PROFILE_BASE}/${m.slug}`;
+
 export const TEAM: Member[] = [
   {
     name: "Usmon Reyimberganov",
+    slug: "usmon-reyimberganov",
     role: "Captain · full-stack",
     contributions: [
       "Perception pipeline: registration, decoding, detection and tracking",
@@ -27,6 +33,7 @@ export const TEAM: Member[] = [
   },
   {
     name: "Mustafo Botirov",
+    slug: "mustafo-botirov",
     role: "Frontend · project website",
     contributions: [
       "This website: design, interactive timelines and charts, the dashboard",
@@ -40,6 +47,7 @@ export const TEAM: Member[] = [
   },
   {
     name: "Aziz Erkayev",
+    slug: "azizbek-erkayev",
     role: "Testing · QA",
     contributions: [
       "Clean-machine runs of the submission commands",

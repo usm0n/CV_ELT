@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { Card, PageHeader } from "@/components/ui";
-import { TEAM } from "@/content/team";
+import { TEAM, profileUrl } from "@/content/team";
 
 export const metadata: Metadata = { title: "Team" };
 
@@ -26,13 +26,18 @@ export default function TeamPage() {
             ["Portfolio", m.portfolio],
           ].filter(([, url]) => url) as [string, string][];
           return (
-            <Card key={m.name} className="flex flex-col">
+            <Card key={m.name} className="relative flex flex-col transition-colors hover:border-text">
               <div className="flex items-center gap-3">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-base font-semibold text-accent">
                   {initials(m.name)}
                 </span>
                 <div>
-                  <h2 className="font-semibold leading-tight">{m.name}</h2>
+                  <h2 className="font-semibold leading-tight">
+                    {/* Stretched link: the ::after overlay makes the whole card clickable. */}
+                    <a href={profileUrl(m)} target="_blank" rel="noopener noreferrer" className="after:absolute after:inset-0">
+                      {m.name}
+                    </a>
+                  </h2>
                   <p className="text-sm text-muted">{m.role}</p>
                 </div>
               </div>
@@ -49,7 +54,7 @@ export default function TeamPage() {
                     {m.projects.map((p) => (
                       <li key={p.name}>
                         {p.url ? (
-                          <a href={p.url} className="font-medium text-accent hover:underline">
+                          <a href={p.url} className="relative z-10 font-medium text-accent hover:underline">
                             {p.name}
                           </a>
                         ) : (
@@ -64,7 +69,7 @@ export default function TeamPage() {
               {links.length > 0 && (
                 <div className="mt-auto flex flex-wrap gap-2 pt-5">
                   {links.map(([label, url]) => (
-                    <a key={label} href={url} className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:border-text">
+                    <a key={label} href={url} className="relative z-10 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:border-text">
                       {label} ↗
                     </a>
                   ))}
