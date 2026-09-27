@@ -58,7 +58,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="WIUT CV demo", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=os.environ.get("DEMO_ORIGINS", "*").split(","),
-                   allow_methods=["GET", "POST"], allow_headers=["*"])
+                   allow_methods=["GET", "POST", "PUT"], allow_headers=["*"])
 jobs = JobQueue()
 
 
